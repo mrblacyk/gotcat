@@ -39,6 +39,9 @@ func connect(protocol string, host string) error {
 	if err != nil {
 		return err
 	}
+
+	defer conn.Close()
+
 	clientLoop(conn)
 	return nil
 }
@@ -48,6 +51,8 @@ func listen(protocol string, host string) error {
 	if err != nil {
 		return err
 	}
+
+	defer ln.Close()
 
 	fmt.Printf("Listening on %s..\n", host)
 	for {
@@ -62,8 +67,9 @@ func listen(protocol string, host string) error {
 }
 
 func serverLoop(conn net.Conn) error {
+	reader := bufio.NewReader(conn)
 	for {
-		msg, err := bufio.NewReader(conn).ReadString('\n')
+		msg, err := reader.ReadString('\n')
 		if err != nil {
 			return err
 		}
@@ -73,7 +79,7 @@ func serverLoop(conn net.Conn) error {
 			conn.Close()
 			return nil
 		}
-		fmt.Println("DEBUG: ", command)
+		// fmt.Println("DEBUG: ", command)
 		if command[0] == "" {
 			continue
 		}
@@ -106,6 +112,10 @@ func clientLoop(conn net.Conn) error {
 	for {
 		if textScanner.Scan() {
 			line := textScanner.Text()
+			if strings.Trim(line, "\n") == "exit" {
+				fmt.Fprintf(conn, "exit\n")
+				return nil
+			}
 			fmt.Fprintf(conn, "%s\n", line)
 		}
 	}
