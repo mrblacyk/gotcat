@@ -23,7 +23,24 @@ func main() {
 			fmt.Printf("Failed to host a server on %s:%d\n", *ip, *port)
 			os.Exit(1)
 		}
+	} else {
+		err := connect("tcp", fmt.Sprintf("%s:%d", *ip, *port))
+		if err != nil {
+			fmt.Printf("Failed to connect to %s:%d\n", *ip, *port)
+			os.Exit(2)
+		}
 	}
+}
+
+func connect(protocol string, host string) error {
+	fmt.Printf("Connecting to %s..\n", host)
+
+	conn, err := net.Dial(protocol, host)
+	if err != nil {
+		return err
+	}
+	clientLoop(conn)
+	return nil
 }
 
 func listen(protocol string, host string) error {
@@ -40,11 +57,11 @@ func listen(protocol string, host string) error {
 		}
 		fmt.Printf("Connection accepted from %s!\n", conn.RemoteAddr().String())
 		fmt.Fprintf(conn, "You have successfully connected to %s!\n", conn.LocalAddr().String())
-		go reverseLoop(conn)
+		go serverLoop(conn)
 	}
 }
 
-func reverseLoop(conn net.Conn) error {
+func serverLoop(conn net.Conn) error {
 	for {
 		msg, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
@@ -56,6 +73,7 @@ func reverseLoop(conn net.Conn) error {
 			conn.Close()
 			return nil
 		}
+		fmt.Println("DEBUG: ", command)
 		if command[0] == "" {
 			continue
 		}
@@ -73,6 +91,22 @@ func reverseLoop(conn net.Conn) error {
 			fmt.Fprintf(conn, "%s: command not found\n", command[0])
 		} else {
 			fmt.Fprintf(conn, out.String())
+		}
+	}
+}
+
+func clientLoop(conn net.Conn) error {
+	scanner := bufio.NewScanner(conn)
+	textScanner := bufio.NewScanner(os.Stdin)
+	go func() {
+		for scanner.Scan() {
+			fmt.Println(scanner.Text())
+		}
+	}()
+	for {
+		if textScanner.Scan() {
+			line := textScanner.Text()
+			fmt.Fprintf(conn, "%s\n", line)
 		}
 	}
 }
